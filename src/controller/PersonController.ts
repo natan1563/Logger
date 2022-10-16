@@ -1,27 +1,38 @@
+import { PersonModel } from '../model/PersonModel'
+import { Request, Response } from 'express'
+import { Person } from '../interfaces/PersonInterface'
 import { elasticClient } from '../config/elastic'
 
 export class PersonController {
-  public static async createPerson(req, res, next) {
-    try {
-      const { name, email, age } = req.body
 
-      await elasticClient.index({
-        index: 'person',
-        body: {name, email, age}
+  public static async listPersons(req: Request, res: Response) {
+    try {
+      const responseDocs = await PersonModel.list()
+      res.json(responseDocs)
+    } catch (err) {
+      res.status(500).json({
+        error: err.message
       })
+    }
+  }
+
+  public static async createPerson(req: Request, res: Response) {
+    try {
+      const { name, email, age }: Person = req.body
+
+      await PersonModel.create({name, email, age})
       .then(() => {
         return res
           .status(201)
           .json({
-            "message": "Pessoa criada com sucesso"
+            message: "Pessoa criada com sucesso",
           })
       })
-      .catch(() => {
+      .catch((err) => {
+        console.log(err.message)
         throw new Error("Falha ao salvar a pessoa")
       })
     } catch (err) {
-      console.error(err.message)
-
       res
         .status(500)
         .json({
@@ -30,23 +41,17 @@ export class PersonController {
     }
   }
 
-  public static async getByName(req, res, next) {
+  public static async getByName(req: Request, res: Response) {
     try {
-      const { text } = req.body
+      const { personName }: { personName: string } = req.query
 
-      elasticClient.search({
-        body: {
-          query: {
-            wildcard: { "name": `${text.trim()}` }
-          }
-        }
-      })
-      .then(response => {
-        return res.json(response)
-      })
+      const responseData = await PersonModel.getByName(personName)
+      .then(response => response?.hits?.hits)
       .catch(err => {
         throw new Error(err.message)
       })
+
+      res.json(responseData)
     } catch (err) {
       res
         .status(500)
@@ -56,27 +61,21 @@ export class PersonController {
     }
   }
 
-  public static async getById(req, res, next) {
+  public static async getById(req: Request, res: Response) {
     try {
-      const { id } = req.params
+      const { id }: { id: string } = req.params
     
-      elasticClient.search({
-        body: {
-          query: {
-            match: {
-              "_id": id
-            }
-          }
-        }
-      })
+      PersonModel.getById(id)
       .then(response => {
-        return res.json(response)
+        return res.json(response?.hits?.hits)
       })
       .catch(err => {
         throw new Error(err.message)
       })
     } catch (err) {
-      return res.status(500).json({error: err.message})
+      return res
+        .status(500)
+        .json({error: err.message})
     }
   } 
 }
